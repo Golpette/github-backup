@@ -3,8 +3,15 @@
 Created on Thu Aug  6 15:36:37 2020
 @author: SCOURT01
 
-Script to back up all repos and branches from our github organization.
+Script to back up all repos and branches from your github organisation.
 You will need git installed and a github user account.
+
+Update: use of password in API calls is now deprecated so to run 
+this script you will need to create a personal access token (PAT) at
+github.com and use this instead. Instructions for generating a PAT:
+https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token
+
+!! Be careful not to push / share your PAT with anyone !!
 
 """
 
@@ -13,18 +20,12 @@ from datetime import date
 from contextlib import contextmanager
 
 
-###### Use your github username ########################
-USER = "xxx"
 #####################################################
-
-# Orgsanisation name
-ORGANISATION = "xxxx"
-
-# Specify the "proxy:port" or set to None
-#PROXYPORT = "http://xxx:xxxx"
+# Behind a firewall? Specify your "proxy:port" or set to None
+#PROXYPORT = "http://www-xxx:1234"
 PROXYPORT = None
-
 #####################################################
+
 
 
 @contextmanager
@@ -48,23 +49,22 @@ def has_master_branch( remotebranches ):
     return has_master
 
 
-def get_repos():
+def get_repos(user, org, pat):
     """Return list of repos in organisation
     """
     # curl the organisation page. 
     # Need popen().read() to store output as string
     if PROXYPORT is not None:
-        curl = os.popen(f"curl -i -u {USER} -x {PROXYPORT} https://api.github.com/orgs/{ORGANISATION}/repos?type=all").read().split("\n")
+        curl = os.popen(f"curl -i -u {user}:{pat} -x {PROXYPORT} https://api.github.com/orgs/{org}/repos?type=all").read().split("\n")
     else:
-        curl = os.popen(f"curl -i -u {USER} https://api.github.com/orgs/{ORGANISATION}/repos?type=all").read().split("\n")   
-    
+        curl = os.popen(f"curl -i -u {user}:{pat} https://api.github.com/orgs/{org}/repos?type=all").read().split("\n")
+        
     # get repo names
     repos = []
     for line in curl:
         if '"full_name":' in line:
             # repo lines like: '    "full_name": "UCLHp/pbtMod",'
-            ##repo = line.split(":")[1].strip(",").strip()
-            repo = line.split(f"{ORGANISATION}/")[1].strip(",").strip("\"")
+            repo = line.split(f"{org}/")[1].strip(",").strip("\"")
             repos.append(repo)
             
     return repos
@@ -83,12 +83,16 @@ def date_for_dir():
 
 def main():
     
-    repos = get_repos()
-    print("Repos found:")
-    print(repos)
-
-    #test on 2
-    #repos = ["xrv124","pdd-analysis"]
+    # Get organization, username and PAT
+    print("Input the github organization name:")
+    org = input()
+    print("Input your github username:")
+    user = input()
+    print("Input your github personal access token, NOT your password")
+    pat = input()
+    
+    repos = get_repos(user, org, pat)
+    print(f"Repos found: {repos}")
  
     # Make dated directory for backup
     dirname = date_for_dir()
@@ -97,7 +101,7 @@ def main():
         for repo in repos:
             # Clone repo (makes dir automatically)
             print(f"xx Cloning repo {repo} xx")
-            os.system(f"git clone https://github.com/{ORGANISATION}/{repo}.git")
+            os.system(f"git clone https://github.com/{org}/{repo}.git")
             # cd to repo and pull all branches
             with cd(repo):
                 gitbranch = os.popen("git branch -r").read().strip().split("\n")
@@ -110,9 +114,7 @@ def main():
                 has_master = has_master_branch( gitbranch )
                 if has_master:
                     # Checkout to master branch
-                    os.system("git checkout master")
-        ##raise Exception("Going back a directory")
-        
+                    os.system("git checkout master")        
     
 
 
